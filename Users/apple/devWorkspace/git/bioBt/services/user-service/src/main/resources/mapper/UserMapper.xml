@@ -1,0 +1,275 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.biobt.user.mapper.UserMapper">
+
+    <!-- 用户结果映射 -->
+    <resultMap id="BaseResultMap" type="com.biobt.user.entity.User">
+        <id column="id" property="id" jdbcType="BIGINT"/>
+        <result column="tenant_id" property="tenantId" jdbcType="BIGINT"/>
+        <result column="username" property="username" jdbcType="VARCHAR"/>
+        <result column="password" property="password" jdbcType="VARCHAR"/>
+        <result column="email" property="email" jdbcType="VARCHAR"/>
+        <result column="phone" property="phone" jdbcType="VARCHAR"/>
+        <result column="real_name" property="realName" jdbcType="VARCHAR"/>
+        <result column="nickname" property="nickname" jdbcType="VARCHAR"/>
+        <result column="avatar" property="avatar" jdbcType="VARCHAR"/>
+        <result column="gender" property="gender" jdbcType="TINYINT"/>
+        <result column="birthday" property="birthday" jdbcType="DATE"/>
+        <result column="status" property="status" jdbcType="TINYINT"/>
+        <result column="is_locked" property="isLocked" jdbcType="TINYINT"/>
+        <result column="lock_time" property="lockTime" jdbcType="TIMESTAMP"/>
+        <result column="last_login_time" property="lastLoginTime" jdbcType="TIMESTAMP"/>
+        <result column="last_login_ip" property="lastLoginIp" jdbcType="VARCHAR"/>
+        <result column="login_count" property="loginCount" jdbcType="INTEGER"/>
+        <result column="password_update_time" property="passwordUpdateTime" jdbcType="TIMESTAMP"/>
+        <result column="created_time" property="createdTime" jdbcType="TIMESTAMP"/>
+        <result column="updated_time" property="updatedTime" jdbcType="TIMESTAMP"/>
+        <result column="created_by" property="createdBy" jdbcType="BIGINT"/>
+        <result column="updated_by" property="updatedBy" jdbcType="BIGINT"/>
+        <result column="deleted" property="deleted" jdbcType="TINYINT"/>
+        <result column="version" property="version" jdbcType="INTEGER"/>
+        <result column="remark" property="remark" jdbcType="VARCHAR"/>
+    </resultMap>
+
+    <!-- 用户角色结果映射 -->
+    <resultMap id="UserWithRolesResultMap" type="com.biobt.user.entity.User" extends="BaseResultMap">
+        <collection property="roles" ofType="com.biobt.user.dto.UserResponse$RoleInfo">
+            <id column="role_id" property="id" jdbcType="BIGINT"/>
+            <result column="role_code" property="roleCode" jdbcType="VARCHAR"/>
+            <result column="role_name" property="roleName" jdbcType="VARCHAR"/>
+            <result column="role_description" property="description" jdbcType="VARCHAR"/>
+        </collection>
+    </resultMap>
+
+    <!-- 基础列 -->
+    <sql id="Base_Column_List">
+        id, tenant_id, username, password, email, phone, real_name, nickname, avatar, gender, birthday,
+        status, is_locked, lock_time, last_login_time, last_login_ip, login_count, password_update_time,
+        created_time, updated_time, created_by, updated_by, deleted, version, remark
+    </sql>
+
+    <!-- 分页查询用户列表 -->
+    <select id="selectUserPage" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM sys_user
+        <where>
+            deleted = 0
+            <if test="tenantId != null">
+                AND tenant_id = #{tenantId}
+            </if>
+            <if test="username != null and username != ''">
+                AND username LIKE CONCAT('%', #{username}, '%')
+            </if>
+            <if test="email != null and email != ''">
+                AND email LIKE CONCAT('%', #{email}, '%')
+            </if>
+            <if test="phone != null and phone != ''">
+                AND phone LIKE CONCAT('%', #{phone}, '%')
+            </if>
+            <if test="realName != null and realName != ''">
+                AND real_name LIKE CONCAT('%', #{realName}, '%')
+            </if>
+            <if test="status != null">
+                AND status = #{status}
+            </if>
+            <if test="isLocked != null">
+                AND is_locked = #{isLocked}
+            </if>
+            <if test="startTime != null">
+                AND created_time >= #{startTime}
+            </if>
+            <if test="endTime != null">
+                AND created_time &lt;= #{endTime}
+            </if>
+        </where>
+        ORDER BY created_time DESC
+    </select>
+
+    <!-- 查询用户及其角色信息 -->
+    <select id="selectUserWithRoles" resultMap="UserWithRolesResultMap">
+        SELECT
+            u.id, u.tenant_id, u.username, u.password, u.email, u.phone, u.real_name, u.nickname, u.avatar,
+            u.gender, u.birthday, u.status, u.is_locked, u.lock_time, u.last_login_time, u.last_login_ip,
+            u.login_count, u.password_update_time, u.created_time, u.updated_time, u.created_by, u.updated_by,
+            u.deleted, u.version, u.remark,
+            r.id as role_id, r.role_code, r.role_name, r.description as role_description
+        FROM sys_user u
+        LEFT JOIN sys_user_role ur ON u.id = ur.user_id
+        LEFT JOIN sys_role r ON ur.role_id = r.id AND r.deleted = 0 AND r.status = 1
+        WHERE u.id = #{userId} AND u.deleted = 0
+    </select>
+
+    <!-- 查询用户的权限列表 -->
+    <select id="selectUserPermissions" resultType="java.lang.String">
+        SELECT DISTINCT p.permission_code
+        FROM sys_user u
+        INNER JOIN sys_user_role ur ON u.id = ur.user_id
+        INNER JOIN sys_role r ON ur.role_id = r.id AND r.deleted = 0 AND r.status = 1
+        INNER JOIN sys_role_permission rp ON r.id = rp.role_id
+        INNER JOIN sys_permission p ON rp.permission_id = p.id AND p.deleted = 0 AND p.status = 1
+        WHERE u.id = #{userId} AND u.deleted = 0 AND u.status = 1
+        ORDER BY p.permission_code
+    </select>
+
+    <!-- 根据用户名查询用户（用于登录验证） -->
+    <select id="selectByUsername" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM sys_user
+        WHERE username = #{username}
+        AND tenant_id = #{tenantId}
+        AND deleted = 0
+        LIMIT 1
+    </select>
+
+    <!-- 根据邮箱查询用户 -->
+    <select id="selectByEmail" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM sys_user
+        WHERE email = #{email}
+        AND tenant_id = #{tenantId}
+        AND deleted = 0
+        LIMIT 1
+    </select>
+
+    <!-- 根据手机号查询用户 -->
+    <select id="selectByPhone" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM sys_user
+        WHERE phone = #{phone}
+        AND tenant_id = #{tenantId}
+        AND deleted = 0
+        LIMIT 1
+    </select>
+
+    <!-- 查询用户统计信息 -->
+    <select id="selectUserStatistics" resultType="java.util.Map">
+        SELECT
+            COUNT(*) as total_count,
+            SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END) as enabled_count,
+            SUM(CASE WHEN status = 0 THEN 1 ELSE 0 END) as disabled_count,
+            SUM(CASE WHEN is_locked = 1 THEN 1 ELSE 0 END) as locked_count,
+            SUM(CASE WHEN last_login_time IS NOT NULL AND last_login_time >= DATE_SUB(NOW(), INTERVAL 7 DAY) THEN 1 ELSE 0 END) as recent_login_count,
+            SUM(CASE WHEN last_login_time IS NULL OR last_login_time < DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) as long_no_login_count
+        FROM sys_user
+        WHERE tenant_id = #{tenantId} AND deleted = 0
+    </select>
+
+    <!-- 查询用户登录趋势（按天统计） -->
+    <select id="selectLoginTrend" resultType="java.util.Map">
+        SELECT
+            DATE(login_time) as login_date,
+            COUNT(DISTINCT user_id) as login_user_count,
+            COUNT(*) as login_count
+        FROM sys_user_login_log
+        WHERE login_time >= #{startDate}
+        AND login_time &lt; #{endDate}
+        AND login_status = 1
+        <if test="tenantId != null">
+            AND user_id IN (
+                SELECT id FROM sys_user WHERE tenant_id = #{tenantId} AND deleted = 0
+            )
+        </if>
+        GROUP BY DATE(login_time)
+        ORDER BY login_date
+    </select>
+
+    <!-- 查询用户注册趋势（按天统计） -->
+    <select id="selectRegisterTrend" resultType="java.util.Map">
+        SELECT
+            DATE(created_time) as register_date,
+            COUNT(*) as register_count
+        FROM sys_user
+        WHERE created_time >= #{startDate}
+        AND created_time &lt; #{endDate}
+        AND deleted = 0
+        <if test="tenantId != null">
+            AND tenant_id = #{tenantId}
+        </if>
+        GROUP BY DATE(created_time)
+        ORDER BY register_date
+    </select>
+
+    <!-- 查询活跃用户排行 -->
+    <select id="selectActiveUserRanking" resultType="java.util.Map">
+        SELECT
+            u.id,
+            u.username,
+            u.real_name,
+            u.nickname,
+            u.avatar,
+            u.last_login_time,
+            u.login_count,
+            COUNT(ol.id) as operation_count
+        FROM sys_user u
+        LEFT JOIN sys_user_operation_log ol ON u.id = ol.user_id
+            AND ol.operation_time >= #{startDate}
+            AND ol.operation_time &lt; #{endDate}
+        WHERE u.tenant_id = #{tenantId}
+        AND u.deleted = 0
+        AND u.status = 1
+        GROUP BY u.id, u.username, u.real_name, u.nickname, u.avatar, u.last_login_time, u.login_count
+        ORDER BY operation_count DESC, u.login_count DESC, u.last_login_time DESC
+        LIMIT #{limit}
+    </select>
+
+    <!-- 批量插入用户 -->
+    <insert id="batchInsert" parameterType="java.util.List">
+        INSERT INTO sys_user (
+            tenant_id, username, password, email, phone, real_name, nickname, avatar, gender, birthday,
+            status, is_locked, created_by, updated_by, remark
+        ) VALUES
+        <foreach collection="list" item="item" separator=",">
+            (
+                #{item.tenantId}, #{item.username}, #{item.password}, #{item.email}, #{item.phone},
+                #{item.realName}, #{item.nickname}, #{item.avatar}, #{item.gender}, #{item.birthday},
+                #{item.status}, #{item.isLocked}, #{item.createdBy}, #{item.updatedBy}, #{item.remark}
+            )
+        </foreach>
+    </insert>
+
+    <!-- 批量更新用户状态 -->
+    <update id="batchUpdateStatus">
+        UPDATE sys_user
+        SET status = #{status}, updated_time = NOW(), updated_by = #{updatedBy}
+        WHERE id IN
+        <foreach collection="userIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+        AND deleted = 0
+    </update>
+
+    <!-- 软删除过期用户（长时间未登录且未激活） -->
+    <update id="softDeleteExpiredUsers">
+        UPDATE sys_user
+        SET deleted = 1, updated_time = NOW(), updated_by = #{updatedBy}
+        WHERE tenant_id = #{tenantId}
+        AND deleted = 0
+        AND status = 0
+        AND (
+            last_login_time IS NULL
+            OR last_login_time &lt; DATE_SUB(NOW(), INTERVAL #{days} DAY)
+        )
+        AND created_time &lt; DATE_SUB(NOW(), INTERVAL #{days} DAY)
+    </update>
+
+    <!-- 清理用户敏感信息（用于数据脱敏） -->
+    <update id="cleanSensitiveInfo">
+        UPDATE sys_user
+        SET
+            email = CONCAT('***@', SUBSTRING_INDEX(email, '@', -1)),
+            phone = CONCAT(SUBSTRING(phone, 1, 3), '****', SUBSTRING(phone, -4)),
+            real_name = CONCAT(SUBSTRING(real_name, 1, 1), '***'),
+            updated_time = NOW(),
+            updated_by = #{updatedBy}
+        WHERE id IN
+        <foreach collection="userIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+        AND deleted = 1
+    </update>
+
+</mapper>

@@ -1,0 +1,170 @@
+server:
+  port: 8085
+
+spring:
+  application:
+    name: message-engine
+  
+  profiles:
+    active: dev
+  
+  # 数据源配置
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/biobt_message?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=true&serverTimezone=GMT%2B8
+    username: biobt_app
+    password: biobt123456
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 20
+      auto-commit: true
+      idle-timeout: 30000
+      pool-name: MessageHikariCP
+      max-lifetime: 1800000
+      connection-timeout: 30000
+  
+  # JPA配置
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQL8Dialect
+        format_sql: true
+  
+  # Redis配置
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: 
+      database: 3
+      timeout: 6000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-wait: -1ms
+          max-idle: 8
+          min-idle: 0
+  
+  # 邮件配置
+  mail:
+    host: smtp.qq.com
+    port: 587
+    username: your-email@qq.com
+    password: your-email-password
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+  
+  # Nacos配置
+  cloud:
+    nacos:
+      discovery:
+        server-addr: localhost:8848
+        namespace: biobt-platform
+        group: DEFAULT_GROUP
+      config:
+        server-addr: localhost:8848
+        namespace: biobt-platform
+        group: DEFAULT_GROUP
+        file-extension: yaml
+
+# RocketMQ配置
+rocketmq:
+  name-server: localhost:9876
+  producer:
+    group: message-engine-producer
+    send-message-timeout: 3000
+    retry-times-when-send-failed: 3
+    retry-times-when-send-async-failed: 3
+    max-message-size: 4194304
+  consumer:
+    group: message-engine-consumer
+    consume-timeout: 15000
+    max-reconsume-times: 3
+
+# 管理端点配置
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+
+# 日志配置
+logging:
+  level:
+    com.biobt.message: DEBUG
+    org.apache.rocketmq: INFO
+    org.springframework.mail: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{50} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{50} - %msg%n"
+  file:
+    name: logs/message-engine.log
+
+# API文档配置
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  info:
+    title: 消息引擎API
+    description: BioBt平台消息引擎服务API文档
+    version: 1.0.0
+    contact:
+      name: BioBt Platform Team
+      email: dev@biobt.com
+
+# 消息引擎配置
+message:
+  # 邮件配置
+  email:
+    enabled: true
+    from: your-email@qq.com
+    from-name: BioBt平台
+    template-path: classpath:templates/email/
+  
+  # 短信配置
+  sms:
+    enabled: false
+    provider: aliyun
+    access-key: your-access-key
+    access-secret: your-access-secret
+    sign-name: BioBt平台
+  
+  # 站内信配置
+  internal:
+    enabled: true
+    max-unread-count: 100
+  
+  # WebSocket配置
+  websocket:
+    enabled: true
+    path: /ws/message
+    allowed-origins: "*"
+  
+  # 推送配置
+  push:
+    enabled: false
+    provider: jpush
+    app-key: your-app-key
+    master-secret: your-master-secret
+  
+  # 消息队列配置
+  queue:
+    email-topic: MESSAGE_EMAIL
+    sms-topic: MESSAGE_SMS
+    internal-topic: MESSAGE_INTERNAL
+    push-topic: MESSAGE_PUSH

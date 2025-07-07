@@ -1,0 +1,323 @@
+version: '3.8'
+
+services:
+  # MySQL主库
+  mysql-master:
+    image: mysql:8.0
+    container_name: biobt-mysql-master
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: dba123
+      MYSQL_DATABASE: biobt_platform
+      MYSQL_USER: dba 
+      MYSQL_PASSWORD: dba123
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./infrastructure/mysql/master/data:/var/lib/mysql
+      - ./infrastructure/mysql/master/conf/my.cnf:/etc/mysql/conf.d/my.cnf
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql
+    command: >
+      --server-id=1
+      --log-bin=mysql-bin
+      --binlog-format=ROW
+      --gtid-mode=ON
+      --enforce-gtid-consistency=ON
+      --log-slave-updates=ON
+      --binlog-do-db=biobt_platform
+    networks:
+      - biobt-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  # MySQL从库
+  mysql-slave:
+    image: mysql:8.0
+    container_name: biobt-mysql-slave
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: biobt_platform
+      MYSQL_USER: biobt
+      MYSQL_PASSWORD: biobt123
+    ports:
+      - "3307:3306"
+    volumes:
+      - ./infrastructure/mysql/slave/data:/var/lib/mysql
+      - ./infrastructure/mysql/slave/conf/my.cnf:/etc/mysql/conf.d/my.cnf
+    command: >
+      --server-id=2
+      --relay-log=mysql-relay-bin
+      --read-only=1
+      --gtid-mode=ON
+      --enforce-gtid-consistency=ON
+      --log-slave-updates=ON
+    depends_on:
+      mysql-master:
+        condition: service_healthy
+    networks:
+      - biobt-network
+
+  # Redis集群节点1
+  redis-node-1:
+    image: redis:7-alpine
+    container_name: biobt-redis-1
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+      - "16379:16379"
+    volumes:
+      - ./infrastructure/redis/node1/data:/data
+      - ./infrastructure/redis/node1/redis.conf:/usr/local/etc/redis/redis.conf
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      - biobt-network
+
+  # Redis集群节点2
+  redis-node-2:
+    image: redis:7-alpine
+    container_name: biobt-redis-2
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+      - "16380:16379"
+    volumes:
+      - ./infrastructure/redis/node2/data:/data
+      - ./infrastructure/redis/node2/redis.conf:/usr/local/etc/redis/redis.conf
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      - biobt-network
+
+  # Redis集群节点3
+  redis-node-3:
+    image: redis:7-alpine
+    container_name: biobt-redis-3
+    restart: unless-stopped
+    ports:
+      - "6381:6379"
+      - "16381:16379"
+    volumes:
+      - ./infrastructure/redis/node3/data:/data
+      - ./infrastructure/redis/node3/redis.conf:/usr/local/etc/redis/redis.conf
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      - biobt-network
+
+  # Nacos注册中心
+  nacos:
+    image: nacos/nacos-server:v2.2.0
+    container_name: biobt-nacos
+    restart: unless-stopped
+    environment:
+      MODE: standalone
+      SPRING_DATASOURCE_PLATFORM: mysql
+      MYSQL_SERVICE_HOST: mysql-master
+      MYSQL_SERVICE_PORT: 3306
+      MYSQL_SERVICE_DB_NAME: nacos
+      MYSQL_SERVICE_USER: root
+      MYSQL_SERVICE_PASSWORD: root123
+      MYSQL_SERVICE_DB_PARAM: characterEncoding=utf8&connectTimeout=1000&socketTimeout=3000&autoReconnect=true&useSSL=false&allowPublicKeyRetrieval=true
+      NACOS_AUTH_ENABLE: true
+      NACOS_AUTH_TOKEN: SecretKey012345678901234567890123456789012345678901234567890123456789
+      NACOS_AUTH_IDENTITY_KEY: serverIdentity
+      NACOS_AUTH_IDENTITY_VALUE: security
+    ports:
+      - "8848:8848"
+      - "9848:9848"
+    volumes:
+      - ./infrastructure/nacos/logs:/home/nacos/logs
+    depends_on:
+      mysql-master:
+        condition: service_healthy
+    networks:
+      - biobt-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8848/nacos/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # RocketMQ NameServer
+  rocketmq-nameserver:
+    image: apache/rocketmq:4.9.4
+    container_name: biobt-rocketmq-nameserver
+    restart: unless-stopped
+    ports:
+      - "9876:9876"
+    environment:
+      JAVA_OPT_EXT: "-server -Xms512m -Xmx512m -Xmn256m"
+    command: sh mqnamesrv
+    volumes:
+      - ./infrastructure/rocketmq/nameserver/logs:/home/rocketmq/logs
+    networks:
+      - biobt-network
+
+  # RocketMQ Broker
+  rocketmq-broker:
+    image: apache/rocketmq:4.9.4
+    container_name: biobt-rocketmq-broker
+    restart: unless-stopped
+    ports:
+      - "10909:10909"
+      - "10911:10911"
+    environment:
+      NAMESRV_ADDR: rocketmq-nameserver:9876
+      JAVA_OPT_EXT: "-server -Xms512m -Xmx512m -Xmn256m"
+    command: sh mqbroker -c /opt/rocketmq-4.9.4/conf/broker.conf
+    volumes:
+      - ./infrastructure/rocketmq/broker/logs:/home/rocketmq/logs
+      - ./infrastructure/rocketmq/broker/store:/home/rocketmq/store
+      - ./infrastructure/rocketmq/broker/conf/broker.conf:/opt/rocketmq-4.9.4/conf/broker.conf
+    depends_on:
+      - rocketmq-nameserver
+    networks:
+      - biobt-network
+
+  # RocketMQ Console
+  rocketmq-console:
+    image: styletang/rocketmq-console-ng:latest
+    container_name: biobt-rocketmq-console
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      JAVA_OPTS: "-Drocketmq.namesrv.addr=rocketmq-nameserver:9876 -Dcom.rocketmq.sendMessageWithVIPChannel=false"
+    depends_on:
+      - rocketmq-nameserver
+      - rocketmq-broker
+    networks:
+      - biobt-network
+
+  # Elasticsearch
+  elasticsearch:
+    image: elasticsearch:8.5.0
+    container_name: biobt-elasticsearch
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+      - xpack.security.enabled=false
+      - xpack.security.enrollment.enabled=false
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - ./infrastructure/elasticsearch/data:/usr/share/elasticsearch/data
+      - ./infrastructure/elasticsearch/logs:/usr/share/elasticsearch/logs
+    networks:
+      - biobt-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Kibana
+  kibana:
+    image: kibana:8.5.0
+    container_name: biobt-kibana
+    restart: unless-stopped
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+      ELASTICSEARCH_USERNAME: ""
+      ELASTICSEARCH_PASSWORD: ""
+    ports:
+      - "5601:5601"
+    volumes:
+      - ./infrastructure/kibana/config/kibana.yml:/usr/share/kibana/config/kibana.yml
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - biobt-network
+
+  # MinIO对象存储
+  minio:
+    image: minio/minio:latest
+    container_name: biobt-minio
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    volumes:
+      - ./infrastructure/minio/data:/data
+    command: server /data --console-address ":9001"
+    networks:
+      - biobt-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # Prometheus监控
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: biobt-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infrastructure/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./infrastructure/prometheus/data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - biobt-network
+
+  # Grafana可视化
+  grafana:
+    image: grafana/grafana:latest
+    container_name: biobt-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin123
+    volumes:
+      - ./infrastructure/grafana/data:/var/lib/grafana
+      - ./infrastructure/grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - prometheus
+    networks:
+      - biobt-network
+
+  # Jaeger链路追踪
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: biobt-jaeger
+    restart: unless-stopped
+    ports:
+      - "16686:16686"
+      - "14268:14268"
+    environment:
+      COLLECTOR_OTLP_ENABLED: true
+    networks:
+      - biobt-network
+
+networks:
+  biobt-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  mysql-master-data:
+  mysql-slave-data:
+  redis-data:
+  elasticsearch-data:
+  minio-data:
+  prometheus-data:
+  grafana-data:

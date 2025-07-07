@@ -1,0 +1,166 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: task-engine
+  profiles:
+    active: dev
+  
+  # 数据源配置
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/biobt_task_engine?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=true&serverTimezone=GMT%2B8
+    username: root
+    password: 123456
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 20
+      auto-commit: true
+      idle-timeout: 30000
+      pool-name: TaskEngineHikariCP
+      max-lifetime: 1800000
+      connection-timeout: 30000
+  
+  # JPA配置
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQL8Dialect
+        format_sql: true
+    show-sql: false
+  
+  # Redis配置
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: 
+      database: 3
+      timeout: 10s
+      lettuce:
+        pool:
+          max-active: 200
+          max-wait: -1ms
+          max-idle: 10
+          min-idle: 0
+  
+  # Quartz配置
+  quartz:
+    job-store-type: jdbc
+    jdbc:
+      initialize-schema: embedded
+    properties:
+      org:
+        quartz:
+          scheduler:
+            instanceName: TaskEngineScheduler
+            instanceId: AUTO
+          jobStore:
+            class: org.quartz.impl.jdbcjobstore.JobStoreTX
+            driverDelegateClass: org.quartz.impl.jdbcjobstore.StdJDBCDelegate
+            tablePrefix: QRTZ_
+            isClustered: true
+            clusterCheckinInterval: 10000
+            useProperties: false
+          threadPool:
+            class: org.quartz.simpl.SimpleThreadPool
+            threadCount: 10
+            threadPriority: 5
+            threadsInheritContextClassLoaderOfInitializingThread: true
+  
+  # Nacos配置
+  cloud:
+    nacos:
+      discovery:
+        server-addr: localhost:8848
+        namespace: dev
+        group: BIOBT_GROUP
+      config:
+        server-addr: localhost:8848
+        namespace: dev
+        group: BIOBT_GROUP
+        file-extension: yml
+
+# 监控端点配置
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+
+# 日志配置
+logging:
+  level:
+    com.biobt.platform.taskengine: DEBUG
+    org.springframework.scheduling: DEBUG
+    org.quartz: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{50} - %msg%n"
+
+# API文档配置
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  info:
+    title: 任务引擎 API
+    description: BioBt平台任务引擎服务API文档
+    version: 1.0.0
+
+# XXL-JOB配置
+xxl:
+  job:
+    admin:
+      addresses: http://localhost:8080/xxl-job-admin
+    executor:
+      appname: task-engine
+      address: 
+      ip: 
+      port: 9999
+      logpath: /data/applogs/xxl-job/jobhandler
+      logretentiondays: 30
+    accessToken: default_token
+
+# 任务引擎自定义配置
+task:
+  engine:
+    # 任务执行配置
+    execution:
+      core-pool-size: 10
+      max-pool-size: 50
+      queue-capacity: 1000
+      keep-alive-seconds: 60
+      thread-name-prefix: task-executor-
+    
+    # 任务监控配置
+    monitoring:
+      enabled: true
+      metrics-interval: 30s
+      alert-threshold: 100
+    
+    # 任务重试配置
+    retry:
+      max-attempts: 3
+      backoff-delay: 1000
+      backoff-multiplier: 2.0
+    
+    # 任务缓存配置
+    cache:
+      enabled: true
+      ttl: 3600
+      max-size: 10000
+    
+    # 任务调度配置
+    scheduler:
+      enabled: true
+      pool-size: 20
+      await-termination-seconds: 60
