@@ -1,9 +1,0 @@
-/Users/apple/devWorkspace/git/bioBt/platform/gateway/api-gateway/src/main/java/com/biobt/gateway/filter/RateLimitGlobalFilter.java
-/Users/apple/devWorkspace/git/bioBt/platform/gateway/api-gateway/src/main/java/com/biobt/gateway/filter/LogGlobalFilter.java
-/Users/apple/devWorkspace/git/bioBt/platform/gateway/api-gateway/src/main/java/com/biobt/gateway/filter/AuthGlobalFilter.java
-/Users/apple/devWorkspace/git/bioBt/platform/gateway/api-gateway/src/main/java/com/biobt/gateway/GatewayApplication.java
-/Users/apple/devWorkspace/git/bioBt/platform/gateway/api-gateway/src/main/java/com/biobt/gateway/handler/GlobalExceptionHandler.java
-/Users/apple/devWorkspace/git/bioBt/platform/gateway/api-gateway/src/main/java/com/biobt/gateway/handler/FallbackHandler.java
-/Users/apple/devWorkspace/git/bioBt/platform/gateway/api-gateway/src/main/java/com/biobt/gateway/service/GatewayService.java
-/Users/apple/devWorkspace/git/bioBt/platform/gateway/api-gateway/src/main/java/com/biobt/gateway/config/CorsConfig.java
-/Users/apple/devWorkspace/git/bioBt/platform/gateway/api-gateway/src/main/java/com/biobt/gateway/config/GatewayConfig.java
